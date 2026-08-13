@@ -1,0 +1,69 @@
+# Some code was taken from - https://github.com/PlugFox/template/tree/master/.github
+
+name: Continuous Integration
+
+on:
+  push:
+    branches:
+      - development
+
+jobs:
+  ci:
+    name: Run Continuous Integration
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Get the .github actions
+        uses: actions/checkout@v4
+
+      - name: Setup Flutter
+        uses: ./.github/actions/setup
+        with:
+          flutter-version: "3.44.7"
+
+        # ---------------- GENERATE ---------------- #
+      - name: Generate code (l10n, assets, build_runner)
+        timeout-minutes: 10
+        run: bash scripts/generate.bash
+
+
+        # ---------------- CODE FORMAT ---------------- #
+      - name: ✨ Check Formatting
+        run: bash ./scripts/format.bash
+
+      # ---------------- Analyze ---------------- #
+      - name: 🕵️ Analyze
+        run: bash ./scripts/analyze.bash
+
+      # ---------------- RUN TESTS + COVERAGE ---------------- #
+      - name: 🧪 Run Tests
+        run: bash ./scripts/test.bash
+
+      - name: 📥 Upload test report
+        uses: actions/upload-artifact@v4
+        if: (success() || failure()) && ${{ github.actor != 'dependabot[bot]' }}
+        with:
+          name: test-results
+          path: reports/tests.json
+
+
+# ———————————————————————————————————————————————————————
+  #   TEST REPORT JOB
+  # ———————————————————————————————————————————————————————
+  report_tests:
+    name: "🚛 Test report"
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    # continue-on-error allows this job to run even if 'ci' fails
+    continue-on-error: true
+    needs: [ci]
+    steps:
+      - name: Test Report
+        uses: dorny/test-reporter@v1
+        with:
+          artifact: test-results
+          name: Test Report
+          path: "**/tests.json"
+          reporter: flutter-json
+          fail-on-error: false
