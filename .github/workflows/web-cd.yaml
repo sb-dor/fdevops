@@ -1,0 +1,62 @@
+name: Web Continuous Delivery
+
+on:
+  push:
+    branches:
+      - main
+
+# Some setup actions run inside .github/actions/setup, so they do not need to be repeated here.
+# This workflow runs only on main. Before this deploy workflow, flutter-checks.yml should handle
+# generation, tests, warnings, and code formatting checks.
+
+# You only need PRODUCTION_CONFIG_BASE64 and FIREBASE_CREDENTIALS_JSON.
+# FIREBASE_CREDENTIALS_JSON must contain base64 encoded service account JSON.
+
+jobs:
+  web-cd:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+
+    steps:
+      # 1. Get the source code
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      # 2. Setup Flutter SDK
+      - name: Setup Flutter and dependencies
+        uses: ./.github/actions/setup
+        with:
+          flutter-version: "3.44.7"
+
+      # 3. Generate code (l10n, assets, build_runner) — must be before format/analyze
+      - name: Generate code (l10n, assets, build_runner)
+        timeout-minutes: 10
+        run: bash scripts/generate.bash
+
+      # 4. Decode all secrets before build.
+      - name: Create production config
+        run: 'echo "$PRODUCTION_CONFIG" | base64 --decode > config/production.json'
+        env:
+          PRODUCTION_CONFIG: ${{ secrets.PRODUCTION_CONFIG_BASE64 }}
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: '18'
+
+      - name: Install Firebase CLI
+        run: npm install -g firebase-tools
+
+      - name: Write Firebase service account
+        run: |
+          printf '%s' "$FIREBASE_CREDENTIALS" | base64 --decode > "$HOME/firebase_key.json"
+          chmod 600 "$HOME/firebase_key.json"
+          echo "GOOGLE_APPLICATION_CREDENTIALS=$HOME/firebase_key.json" >> $GITHUB_ENV
+        env:
+          FIREBASE_CREDENTIALS: ${{ secrets.FIREBASE_CREDENTIALS_JSON }}
+
+      - name: Build Web App
+        run: make build-web
+
+      - name: Deploy to Firebase Hosting
+        run: firebase deploy --only hosting --project firebase_project_name

@@ -1,4 +1,4 @@
-name: Continuous Delivery
+name: Android Continuous Delivery
 
 on:
   push:
@@ -6,7 +6,7 @@ on:
       - master
 
 jobs:
-  cd:
+  android-cd:
     runs-on: ubuntu-latest
     timeout-minutes: 60
 
@@ -36,10 +36,6 @@ jobs:
       - name: Generate code (l10n, assets, build_runner)
         timeout-minutes: 10
         run: bash scripts/generate.bash
-
-      - name: Run build_runner
-        run: dart run build_runner build --delete-conflicting-outputs --release
-
 
       # 8. Parse changelog — before build so version info is ready
       - name: Extract latest changelog entry
@@ -77,13 +73,18 @@ jobs:
           curl -sL https://firebase.tools | bash
           firebase --version
 
-      - name: Authenticate with Firebase
+      - name: Write Firebase service account
         run: |
-          echo '${{ secrets.FIREBASE_CREDENTIALS_JSON }}' | base64 --decode > $HOME/firebase_key.json
-          export FIREBASE_CREDENTIALS=$HOME/firebase_key.json
+          printf '%s' "$FIREBASE_CREDENTIALS" | base64 --decode > "$HOME/firebase_key.json"
+          chmod 600 "$HOME/firebase_key.json"
+          echo "GOOGLE_APPLICATION_CREDENTIALS=$HOME/firebase_key.json" >> $GITHUB_ENV
+        env:
+          FIREBASE_CREDENTIALS: ${{ secrets.FIREBASE_CREDENTIALS_JSON }}
 
-      - name: Decode Google Play Service Account
-        run: 'echo "$GOOGLE_PLAY_SERVICE_ACCOUNT" | base64 --decode > android/google_play_key.json'
+      - name: Write Google Play service account
+        run: |
+          printf '%s' "$GOOGLE_PLAY_SERVICE_ACCOUNT" | base64 --decode > android/google_play_key.json
+          chmod 600 android/google_play_key.json
         env:
           GOOGLE_PLAY_SERVICE_ACCOUNT: ${{ secrets.GOOGLE_PLAY_SERVICE_ACCOUNT_BASE64 }}
 
@@ -127,7 +128,7 @@ jobs:
         uses: r0adkll/upload-google-play@v1
         with:
           serviceAccountJson: android/google_play_key.json
-          packageName: tj.avera.reports
+          packageName: package_name
           releaseFiles: build/app/outputs/bundle/release/app-release.aab
           track: production
           status: draft

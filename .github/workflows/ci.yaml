@@ -27,7 +27,6 @@ jobs:
         timeout-minutes: 10
         run: bash scripts/generate.bash
 
-
         # ---------------- CODE FORMAT ---------------- #
       - name: ✨ Check Formatting
         run: bash ./scripts/format.bash
