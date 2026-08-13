@@ -12,5 +12,5 @@ updates:
     pull-request-branch-name:
       separator: /
     target-branch: "main"
-    reviewers:
+    assignees:
       - "sb-dor"
