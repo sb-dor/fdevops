@@ -73,13 +73,10 @@ jobs:
           curl -sL https://firebase.tools | bash
           firebase --version
 
-      - name: Write Firebase service account
+      - name: Authenticate with Firebase
         run: |
-          printf '%s' "$FIREBASE_CREDENTIALS" | base64 --decode > "$HOME/firebase_key.json"
-          chmod 600 "$HOME/firebase_key.json"
-          echo "GOOGLE_APPLICATION_CREDENTIALS=$HOME/firebase_key.json" >> $GITHUB_ENV
-        env:
-          FIREBASE_CREDENTIALS: ${{ secrets.FIREBASE_CREDENTIALS_JSON }}
+          echo '${{ secrets.FIREBASE_CREDENTIALS_JSON }}' | base64 --decode > $HOME/firebase_key.json
+          export FIREBASE_CREDENTIALS=$HOME/firebase_key.json
 
       - name: Write Google Play service account
         run: |
@@ -87,6 +84,16 @@ jobs:
           chmod 600 android/google_play_key.json
         env:
           GOOGLE_PLAY_SERVICE_ACCOUNT: ${{ secrets.GOOGLE_PLAY_SERVICE_ACCOUNT_BASE64 }}
+
+      # - name: Create firebase_options
+      #   run: 'echo "$FIREBASE_OPTIONS" | base64 --decode > lib/firebase_options.dart'
+      #   env:
+      #     FIREBASE_OPTIONS: ${{ secrets.FIREBASE_OPTIONS_BASE64 }}
+
+      # - name: Create google_service_json for Android
+      #   run: 'echo "$GOOGLE_SERVICES_JSON" | base64 --decode > android/app/google-services.json'
+      #   env:
+      #     GOOGLE_SERVICES_JSON: ${{ secrets.GOOGLE_SERVICES_JSON_BASE64 }}
 
       - name: Create key.properties for Android
         run: 'echo "$KEY_PROPERTIES" | base64 --decode > android/key.properties'
