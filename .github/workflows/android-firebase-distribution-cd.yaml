@@ -1,12 +1,12 @@
-name: Android Continuous Delivery
+name: Android Firebase Distribution CD
 
 on:
   push:
     branches:
-      - android-cd
+      - android-fd-cd
 
 jobs:
-  android-cd:
+  android-fd-cd:
     runs-on: ubuntu-latest
     timeout-minutes: 60
 
@@ -44,19 +44,8 @@ jobs:
           VERSION=$(grep -m 1 '## \[' CHANGELOG.md | sed 's/## \[\(.*\)\].*/\1/')
           NOTES=$(awk '/^## \[/{found++} found==1{print} found==2{exit}' CHANGELOG.md | tail -n +2)
 
-          # Take complete lines that fit within 500 characters
-          TRUNCATED=""
-          while IFS= read -r line; do
-            TEST="$TRUNCATED$line
-          "
-            if [ ${#TEST} -gt 500 ]; then
-              break
-            fi
-            TRUNCATED="$TEST"
-          done <<< "$NOTES"
-
           # Remove trailing ### headers without content
-          NOTES=$(echo "$TRUNCATED" | sed '/^### [A-Za-z]*[[:space:]]*$/d')
+          NOTES=$(echo "$NOTES" | sed '/^### [A-Za-z]*[[:space:]]*$/d')
 
           echo "version=$VERSION" >> $GITHUB_OUTPUT
 
@@ -67,16 +56,21 @@ jobs:
           echo "📝 Release notes:"
           echo "$NOTES"
 
-      # 9. Decode all secrets — before build (Firebase app distribution is not necessary for now)
+      # 5. Decode all secrets — before build (Firebase app distribution is not necessary for now)
       - name: Setup Firebase CLI
         run: |
           curl -sL https://firebase.tools | bash
           firebase --version
 
+      # Decoded into the workspace, not $HOME: the App Distribution action runs in
+      # Docker and only ${{ github.workspace }} is mounted into the container.
       - name: Authenticate with Firebase
         run: |
-          echo '${{ secrets.FIREBASE_CREDENTIALS_JSON }}' | base64 --decode > $HOME/firebase_key.json
-          export FIREBASE_CREDENTIALS=$HOME/firebase_key.json
+          printf '%s' "$FIREBASE_CREDENTIALS" | base64 --decode > firebase_key.json
+          chmod 600 firebase_key.json
+          echo "GOOGLE_APPLICATION_CREDENTIALS=$GITHUB_WORKSPACE/firebase_key.json" >> $GITHUB_ENV
+        env:
+          FIREBASE_CREDENTIALS: ${{ secrets.FIREBASE_CREDENTIALS_JSON }}
 
       - name: Write Google Play service account
         run: |
@@ -112,9 +106,9 @@ jobs:
 
       # 10. Build
       # ---------------- ANDROID APP BUNDLE + APK ---------------- #
-      - name: Build App Bundle (for Google Play)
+      - name: Build APK (for Firebase Android Distribution)
         run: |
-          flutter build appbundle --release \
+          flutter build apk --release \
             --obfuscate \
             --split-debug-info=build/debug-info \
             --dart-define-from-file=config/production.json
@@ -125,19 +119,12 @@ jobs:
             --app=${{ secrets.ANDROID_FIREBASE_APP_ID }} \
             build/debug-info
 
-      # ---------------- GOOGLE PLAY RELEASE ---------------- #
-      - name: Prepare Google Play release notes
-        run: |
-          mkdir -p distribution/whatsnew
-          cp release_notes.txt distribution/whatsnew/whatsnew-en-US
-
-      - name: Deploy App Bundle to Google Play
-        uses: r0adkll/upload-google-play@v1
+      # ---------------- FIREBASE DISTRIBUTION ---------------- #
+      - name: Deploy APK to Firebase App Distribution
+        uses: wzieba/Firebase-Distribution-Github-Action@v1
         with:
-          serviceAccountJson: android/google_play_key.json
-          packageName: com.android.example
-          releaseFiles: build/app/outputs/bundle/release/app-release.aab
-          track: production
-          status: draft
-          whatsNewDirectory: distribution/whatsnew
-          # changesNotSentForReview: true
+          appId: ${{ secrets.ANDROID_FIREBASE_APP_ID }}
+          serviceCredentialsFile: firebase_key.json
+          groups: group-testers
+          file: build/app/outputs/flutter-apk/app-release.apk
+          releaseNotesFile: release_notes.txt

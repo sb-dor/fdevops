@@ -43,3 +43,10 @@ app.*.map.json
 /android/app/debug
 /android/app/profile
 /android/app/release
+
+# CI-decoded credentials — never commit
+firebase_key.json
+android/google_play_key.json
+android/key.properties
+android/app/upload-keystore.jks
+config/production.json

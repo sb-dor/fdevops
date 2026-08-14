@@ -3,7 +3,7 @@ name: Web Continuous Delivery
 on:
   push:
     branches:
-      - main
+      - web-cd
 
 # Some setup actions run inside .github/actions/setup, so they do not need to be repeated here.
 # This workflow runs only on main. Before this deploy workflow, flutter-checks.yml should handle
