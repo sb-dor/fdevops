@@ -1,0 +1,107 @@
+# android - https://github.com/codemagic-ci-cd/codemagic-sample-projects/blob/main/flutter/flutter-android-and-ios-yaml-demo-project/codemagic.yaml
+# android - https://docs.codemagic.io/yaml-quick-start/building-a-flutter-app/#conclusion
+
+#  https://codemagic.io/teams/62f38b6a033f9ce2596c014d -> Code signing identities
+
+workflows:
+  flutter-android:
+    name: Flutter Android 
+    instance_type: mac_mini_m2 # Other available machine types: mac_mini_m4, mac_studio_m4_max, linux_x2, linux_x4, windows_x2
+    max_build_duration: 120
+    # NOT TRIGGERING ON PUSH? This block only FILTERS incoming events - it cannot
+    # make GitHub send them. Check these in order:
+    #   1. Webhook exists: github.com/sb-dor/nosleep -> Settings -> Webhooks.
+    #      Look for api.codemagic.io/hooks/... If missing, create it from the
+    #      Codemagic side: app -> Settings -> Webhooks -> "Create webhook".
+    #      If it exists, open "Recent Deliveries" - it shows whether GitHub sent
+    #      the push and what Codemagic answered.
+    #   2. App is in yaml mode, not the Workflow Editor (which ignores this file).
+    #   3. You actually pushed - check `git status -sb` for "ahead N".
+    #   4. Codemagic reads codemagic.yaml from the PUSHED branch, so changes to
+    #      this block must be merged into main before pushes to main will build.
+    # Docs: https://docs.codemagic.io/yaml-running-builds/webhooks/
+    triggering:
+        events:
+          - push
+        branch_patterns:
+          - pattern: main
+            include: true
+            source: true
+    environment:
+      android_signing:
+        - nosleep_jks
+      groups:
+        - google_play # <-- (Includes GOOGLE_PLAY_SERVICE_ACCOUNT_CREDENTIALS)
+      vars:
+        PACKAGE_NAME: "com.sbdor.nosleep" # <-- Put your package name here
+        GOOGLE_PLAY_TRACK: "production"
+      flutter: 3.44.7
+
+    scripts:
+      - name: Set up local.properties
+        script: |
+          echo "flutter.sdk=$HOME/programs/flutter" > "$CM_BUILD_DIR/android/local.properties"
+
+      - name: Get Flutter packages
+        script: |
+          flutter packages pub get
+
+      - name: Generate code (l10n, assets, build_runner)
+        script: bash scripts/generate.bash
+
+
+      - name: Setup Firebase CLI
+        script: |
+          curl -sL https://firebase.tools | bash
+          firebase --version
+
+
+      - name: Authenticate with Firebase
+        script: |
+          echo "$FIREBASE_CREDENTIALS_BASE64" | base64 --decode > $HOME/firebase_key.json
+
+
+      # - name: Create google_service_json for Android
+      #   script: |
+      #     echo "$GOOGLE_SERVICES_JSON_BASE64" | base64 --decode > android/app/google-services.json
+
+      
+      # - name: Create firebase_options
+      #   script: | 
+      #     echo "$FIREBASE_OPTIONS_BASE64" | base64 --decode > lib/firebase_options.dart
+
+
+      - name: Config production json file setup
+        script: |
+          echo "$PRODUCTION_CONFIG_JSON_BASE64" | base64 --decode > config/production.json
+
+
+      - name: Build AAB with Flutter
+        script: |
+            flutter build appbundle --release \
+            --obfuscate \
+            --split-debug-info=build/debug-info \
+            --dart-define-from-file=config/production.json
+      - name: Upload debug symbols to Crashlytics
+        script: |
+          firebase crashlytics:symbols:upload \
+            --app=$ANDROID_FIREBASE_APP_ID \
+            build/debug-info
+            
+    # Required for publishing: anything not matched here is discarded with the VM,
+    # and google_play below has nothing to upload ("No artifacts were found").
+    artifacts:
+      - build/**/outputs/**/*.aab
+      - build/**/outputs/**/mapping.txt
+      - build/debug-info/**
+    publishing:
+      email:
+        recipients:
+          - email@gmail.com
+        notify:
+          success: true
+          failure: true
+      google_play:
+        credentials: $GOOGLE_PLAY_SERVICE_ACCOUNT_CREDENTIALS
+        track: $GOOGLE_PLAY_TRACK
+        submit_as_draft: true
