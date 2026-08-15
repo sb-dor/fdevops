@@ -75,7 +75,7 @@ jobs:
 
       - name: Authenticate with Firebase
         run: |
-          echo '${{ secrets.FIREBASE_CREDENTIALS_JSON }}' | base64 --decode > $HOME/firebase_key.json
+          echo '${{ secrets.FIREBASE_CREDENTIALS_JSON_BASE64 }}' | base64 --decode > $HOME/firebase_key.json
           export FIREBASE_CREDENTIALS=$HOME/firebase_key.json
 
       - name: Write Google Play service account
@@ -83,7 +83,7 @@ jobs:
           printf '%s' "$GOOGLE_PLAY_SERVICE_ACCOUNT" | base64 --decode > android/google_play_key.json
           chmod 600 android/google_play_key.json
         env:
-          GOOGLE_PLAY_SERVICE_ACCOUNT: ${{ secrets.GOOGLE_PLAY_SERVICE_ACCOUNT_BASE64 }}
+          GOOGLE_PLAY_SERVICE_ACCOUNT: ${{ secrets.GOOGLE_PLAY_SERVICE_ACCOUNT_JSON_BASE64 }}
 
       # - name: Create firebase_options
       #   run: 'echo "$FIREBASE_OPTIONS" | base64 --decode > lib/firebase_options.dart'
@@ -98,17 +98,17 @@ jobs:
       - name: Create key.properties for Android
         run: 'echo "$KEY_PROPERTIES" | base64 --decode > android/key.properties'
         env:
-          KEY_PROPERTIES: ${{ secrets.KEY_PROPERTIES }}
+          KEY_PROPERTIES: ${{ secrets.KEY_PROPERTIES_BASE64 }}
 
       - name: Create upload-keystore for Android
         run: 'echo "$UPLOAD_KEYSTORE" | base64 --decode > android/app/upload-keystore.jks'
         env:
-          UPLOAD_KEYSTORE: ${{ secrets.UPLOAD_KEYSTORE }}
+          UPLOAD_KEYSTORE: ${{ secrets.UPLOAD_KEYSTORE_BASE64 }}
 
       - name: Create production config
         run: 'echo "$PRODUCTION_CONFIG" | base64 --decode > config/production.json'
         env:
-          PRODUCTION_CONFIG: ${{ secrets.PRODUCTION_CONFIG_BASE64 }}
+          PRODUCTION_CONFIG: ${{ secrets.PRODUCTION_CONFIG_JSON_BASE64 }}
 
       # 10. Build
       # ---------------- ANDROID APP BUNDLE + APK ---------------- #

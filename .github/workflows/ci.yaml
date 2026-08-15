@@ -22,6 +22,21 @@ jobs:
         with:
           flutter-version: "3.44.7"
 
+      # ---------------- SECRETS ---------------- #
+      # lib/firebase_options.dart is git-ignored (see lib/.gitignore) but is
+      # imported by initialize_dependencies.dart, so it must exist before
+      # anything analyzes or compiles the sources.
+      # - name: Create firebase_options
+      #   env:
+      #     FIREBASE_OPTIONS: ${{ secrets.FIREBASE_OPTIONS_BASE64 }}
+      #   run: |
+      #     if [ -z "$FIREBASE_OPTIONS" ]; then
+      #       echo "::error::secret FIREBASE_OPTIONS_BASE64 is empty or unset"
+      #       exit 1
+      #     fi
+      #     echo "$FIREBASE_OPTIONS" | base64 --decode > lib/firebase_options.dart
+      #     test -s lib/firebase_options.dart
+
         # ---------------- GENERATE ---------------- #
       - name: Generate code (l10n, assets, build_runner)
         timeout-minutes: 10

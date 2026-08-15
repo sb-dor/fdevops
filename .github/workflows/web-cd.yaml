@@ -16,6 +16,8 @@ jobs:
   web-cd:
     runs-on: ubuntu-latest
     timeout-minutes: 60
+    env:
+      GOOGLE_APPLICATION_CREDENTIALS: ${{ github.workspace }}/firebase_key.json
 
     steps:
       # 1. Get the source code
@@ -37,7 +39,17 @@ jobs:
       - name: Create production config
         run: 'echo "$PRODUCTION_CONFIG" | base64 --decode > config/production.json'
         env:
-          PRODUCTION_CONFIG: ${{ secrets.PRODUCTION_CONFIG_BASE64 }}
+          PRODUCTION_CONFIG: ${{ secrets.PRODUCTION_CONFIG_JSON_BASE64 }}
+
+      # - name: Create firebase_options
+      #   run: 'echo "$FIREBASE_OPTIONS" | base64 --decode > lib/firebase_options.dart'
+      #   env:
+      #     FIREBASE_OPTIONS: ${{ secrets.FIREBASE_OPTIONS_BASE64 }}
+
+      # - name: Create firebase.json
+      #   run: 'echo "$FIREBASE_JSON" | base64 --decode > firebase.json'
+      #   env:
+      #     FIREBASE_JSON: ${{ secrets.FIREBASE_JSON_BASE64 }}
 
       - name: Set up Node.js
         uses: actions/setup-node@v3
@@ -47,15 +59,17 @@ jobs:
       - name: Install Firebase CLI
         run: npm install -g firebase-tools
 
-      - name: Authenticate with Firebase
+      - name: Write Firebase service account
         run: |
-          echo '${{ secrets.FIREBASE_CREDENTIALS_JSON }}' | base64 --decode > $HOME/firebase_key.json
-          export FIREBASE_CREDENTIALS=$HOME/firebase_key.json
+          printf '%s' "$FIREBASE_CREDENTIALS" | base64 --decode > "$GOOGLE_APPLICATION_CREDENTIALS"
+          chmod 600 "$GOOGLE_APPLICATION_CREDENTIALS"
+        env:
+          FIREBASE_CREDENTIALS: ${{ secrets.FIREBASE_CREDENTIALS_BASE64 }}
 
       - name: Build Web App
-        run: make build-web
+        run: flutter build web --release --dart-define-from-file=config/production.json
 
       - name: Deploy to Firebase Hosting
         run: firebase deploy --only hosting --project firebase_project_name
         env:
-          GOOGLE_APPLICATION_CREDENTIALS: $HOME/firebase_key.json
+          GOOGLE_APPLICATION_CREDENTIALS: ${{ github.workspace }}/firebase_key.json
