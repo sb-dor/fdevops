@@ -42,9 +42,42 @@ workflows:
         script: |
           echo "flutter.sdk=$HOME/programs/flutter" > "$CM_BUILD_DIR/android/local.properties"
 
+      # Parsed early so a malformed CHANGELOG fails the build before the ~4min AAB build.
+      # Codemagic picks up release_notes.txt from the repo root on its own and publishes
+      # it to Google Play under the en-US localization - no distribution/whatsnew copy
+      # needed (that was only for the r0adkll GitHub Action).
+      # https://docs.codemagic.io/yaml-notification/publish-release-notes/
+      - name: Extract latest changelog entry
+        script: |
+          #!/usr/bin/env bash
+          VERSION=$(grep -m 1 '## \[' CHANGELOG.md | sed 's/## \[\(.*\)\].*/\1/')
+          NOTES=$(awk '/^## \[/{found++} found==1{print} found==2{exit}' CHANGELOG.md | tail -n +2)
+
+          # Take complete lines that fit within Google Play's 500 character limit
+          TRUNCATED=""
+          while IFS= read -r line; do
+            TEST="${TRUNCATED}${line}"$'\n'
+            if [ ${#TEST} -gt 500 ]; then
+              break
+            fi
+            TRUNCATED="$TEST"
+          done <<< "$NOTES"
+
+          # Remove trailing ### headers without content
+          NOTES=$(echo "$TRUNCATED" | sed '/^### [A-Za-z]*[[:space:]]*$/d')
+
+          echo "$NOTES" > release_notes.txt
+          echo "APP_VERSION=$VERSION" >> $CM_ENV
+
+          echo "✅ Extracted version: $VERSION"
+          echo "📝 Release notes:"
+          echo "$NOTES"
+          
+
       - name: Get Flutter packages
         script: |
           flutter packages pub get
+
 
       - name: Generate code (l10n, assets, build_runner)
         script: bash scripts/generate.bash
